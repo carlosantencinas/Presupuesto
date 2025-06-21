@@ -1,287 +1,203 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { ThemeProvider } from "@mui/material/styles";
+import { Box, Button, Tabs, Tab, Paper, Typography } from "@mui/material";
+import { Upload as UploadIcon, PictureAsPdf as PdfIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import { lightTheme } from "./theme";
+import LoadingOverlay from "./components/LoadingOverlay";
+import TituloConIcono from "./components/TituloConIcono";
+import GlobalSearch from "./components/GlobalSearch";
+import PresupuestoTab from "./tabs/PresupuestoTab";
+import MaterialesTab from "./tabs/MaterialesTab";
+import ManoObraTab from "./tabs/ManoObraTab";
+import CalculationsSheet from "./tabs/CalculationsSheet";
+import { useMediaQuery } from "@mui/material";
 import * as XLSX from "xlsx";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Paper from "@mui/material/Paper";
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
-import TextField from "@mui/material/TextField";
-import Pagination from "@mui/material/Pagination";
-import Button from "@mui/material/Button";
-import html2pdf from "html2pdf.js";
-
-const lightTheme = createTheme({
-  palette: {
-    mode: "light",
-    primary: {
-      main: "#f50057",
-    },
-    secondary: {
-      main: "#f50057",
-    },
-    background: {
-      default: "#f5f5f5",
-      paper: "#ffffff",
-    },
-    text: {
-      primary: "#222222",
-      secondary: "#555555",
-    },
-  },
-  components: {
-    MuiTableCell: {
-      styleOverrides: {
-        root: {
-          borderColor: "#e0e0e0",
-        },
-      },
-    },
-  },
-});
-
-function TituloConIcono({ icono, texto, colorFondoIcono = "#1976d2", colorTexto = "#1976d2" }) {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-      <Box
-        sx={{
-          backgroundColor: colorFondoIcono,
-          color: "#fff",
-          borderRadius: "50%",
-          width: 40,
-          height: 40,
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          fontSize: 24,
-          mr: 2,
-          boxShadow: 3,
-        }}
-      >
-        {icono}
-      </Box>
-      <Typography variant="h4" sx={{ fontWeight: "bold", color: colorTexto }}>
-        {texto}
-      </Typography>
-    </Box>
-  );
-}
-
-function DataTable({
-  headers,
-  rows,
-  rowsPerPage = 5,
-  onRowClick,
-  selectedRow,
-  tableTitle,
-}) {
-  const [filters, setFilters] = useState({});
-  const [page, setPage] = useState(1);
-  const [sortColumn, setSortColumn] = useState(null);
-  const [sortDirection, setSortDirection] = useState("asc");
-
-  const filteredRows = rows.filter((row) =>
-    headers.every((_, idx) => {
-      if (!filters[idx]) return true;
-      const cellValue = row[idx] ? row[idx].toString().toLowerCase() : "";
-      return cellValue.includes(filters[idx].toLowerCase());
-    })
-  );
-
-  const sortedRows = [...filteredRows];
-  if (sortColumn !== null) {
-    sortedRows.sort((a, b) => {
-      const aValue = a[sortColumn] || "";
-      const bValue = b[sortColumn] || "";
-
-      if (!isNaN(aValue) && !isNaN(bValue)) {
-        return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
-      }
-
-      const aStr = aValue.toString().toLowerCase();
-      const bStr = bValue.toString().toLowerCase();
-      return sortDirection === "asc" ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
-    });
-  }
-
-  const paginatedRows = sortedRows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
-
-  const handleFilterChange = (idx, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [idx]: value,
-    }));
-    setPage(1);
-  };
-
-  const handleSort = (idx) => {
-    if (sortColumn === idx) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(idx);
-      setSortDirection("asc");
-    }
-  };
-
-  return (
-    <Box sx={{ mb: 4 }}>
-      {tableTitle && (
-        <Typography variant="h5" sx={{ mb: 2, color: "primary.main" }}>
-          {tableTitle}
-        </Typography>
-      )}
-      <TableContainer component={Paper} sx={{ mb: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              {headers.map((h, i) => (
-                <TableCell
-                  key={i}
-                  sx={{
-                    fontWeight: "bold",
-                    color: "primary.main",
-                    fontSize: 14,
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                  onClick={() => handleSort(i)}
-                >
-                  {h}
-                  {sortColumn === i ? (sortDirection === "asc" ? " ↑" : " ↓") : ""}
-                </TableCell>
-              ))}
-            </TableRow>
-            <TableRow>
-              {headers.map((_, i) => (
-                <TableCell key={i}>
-                  <TextField
-                    size="small"
-                    variant="outlined"
-                    placeholder="Filtrar"
-                    value={filters[i] || ""}
-                    onChange={(e) => handleFilterChange(i, e.target.value)}
-                  />
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedRows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={headers.length} align="center">
-                  No hay resultados
-                </TableCell>
-              </TableRow>
-            )}
-            {paginatedRows.map((row, i) => (
-              <TableRow
-                key={i}
-                onClick={() => onRowClick && onRowClick(row[0])}
-                selected={row[0] === selectedRow}
-                sx={{
-                  cursor: onRowClick ? "pointer" : "default",
-                  "&.MuiTableRow-root.Mui-selected": {
-                    backgroundColor: "primary.light",
-                  },
-                  "&:hover": {
-                    backgroundColor: onRowClick ? "action.hover" : "inherit",
-                  },
-                }}
-              >
-                {row.map((cell, j) => (
-                  <TableCell key={j} sx={{ fontSize: 14 }}>
-                    {cell}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <Box sx={{ display: "flex", justifyContent: "center" }}>
-        <Pagination
-          count={Math.ceil(filteredRows.length / rowsPerPage)}
-          page={page}
-          onChange={(_, value) => setPage(value)}
-          color="primary"
-          size="small"
-        />
-      </Box>
-    </Box>
-  );
-}
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 function App() {
   const [sheets, setSheets] = useState({});
+  const [projectTitle, setProjectTitle] = useState("Adjunta el archivo de Presupuesto");
+  const [activeTab, setActiveTab] = useState("presupuesto");
+  const [loading, setLoading] = useState(false);
+  const [globalFilter, setGlobalFilter] = useState("");
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedMaterial, setSelectedMaterial] = useState(null);
+  const [selectedManoObra, setSelectedManoObra] = useState(null);
+  const isMobile = useMediaQuery('(max-width:600px)');
+
+  const appData = useMemo(() => {
+    return {
+      presupuesto: {
+        headers: sheets["Presupuesto_General"]?.[0] || [],
+        rows: sheets["Presupuesto_General"]?.slice(1) || []
+      },
+      materiales: {
+        catalogo: {
+          headers: sheets["Catálogo_Materiales"]?.[0] || [],
+          rows: sheets["Catálogo_Materiales"]?.slice(1) || []
+        },
+        asignacion: {
+          headers: sheets["Asignación_Materiales"]?.[0] || [],
+          rows: sheets["Asignación_Materiales"]?.slice(1) || []
+        }
+      },
+      manoObra: {
+        catalogo: {
+          headers: sheets["Catálogo_ManoObra"]?.[0] || [],
+          rows: sheets["Catálogo_ManoObra"]?.slice(1) || []
+        },
+        asignacion: {
+          headers: sheets["Asignación_ManoObra"]?.[0] || [],
+          rows: sheets["Asignación_ManoObra"]?.slice(1) || []
+        }
+      }
+    };
+  }, [sheets]);
 
   const handleImportExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setLoading(true);
+    setSelectedItem(null);
+    setSelectedItems([]);
+    setSelectedMaterial(null);
+    setSelectedManoObra(null);
+
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
-      const parsed = {};
-      workbook.SheetNames.forEach((name) => {
-        const sheet = workbook.Sheets[name];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        parsed[name] = rows;
-      });
-      setSheets(parsed);
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const parsed = {};
+
+        const requiredSheets = ["Presupuesto_General", "Catálogo_Materiales", "Asignación_Materiales"];
+        const missingSheets = requiredSheets.filter(sheet => !workbook.SheetNames.includes(sheet));
+
+        if (missingSheets.length > 0) {
+          throw new Error(`Faltan hojas requeridas: ${missingSheets.join(", ")}`);
+        }
+
+        workbook.SheetNames.forEach((name) => {
+          const sheet = workbook.Sheets[name];
+          parsed[name] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        });
+
+        const hoja1 = workbook.Sheets["Hoja1"];
+        if (hoja1 && hoja1["B1"]) {
+          const titleText = hoja1["B1"].v.toString();
+          setProjectTitle(titleText);
+        } else {
+          setProjectTitle("Presupuesto General del Proyecto");
+        }
+
+        setSheets(parsed);
+      } catch (error) {
+        console.error("Error al procesar el archivo Excel:", error);
+        alert(`Error: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
     };
+
+    reader.onerror = () => {
+      alert("Error al leer el archivo. Por favor, inténtalo de nuevo.");
+      setLoading(false);
+    };
+
     reader.readAsArrayBuffer(file);
   };
 
-  const exportPDF = () => {
-    const element = document.getElementById("reporte");
-    const options = {
-      margin: 0.5,
-      filename: "Presupuesto_General_Proyecto.pdf",
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-    };
-    html2pdf().set(options).from(element).save();
+  const exportPDF = async () => {
+  const element = document.getElementById("reporte");
+  if (!element) return;
+
+  setLoading(true);
+
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+
+    const pdf = new jsPDF({
+      unit: "pt",
+      format: "a4",
+      orientation: "portrait",
+    });
+
+    const margin = 40; // Margen en puntos
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const usableWidth = pdfWidth - margin * 2;
+
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    const scaleRatio = usableWidth / imgWidth;
+    const scaledHeight = imgHeight * scaleRatio;
+
+    let heightLeft = scaledHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, "JPEG", margin, position + margin, usableWidth, scaledHeight);
+    heightLeft -= pdfHeight;
+
+    while (heightLeft > 0) {
+      pdf.addPage();
+      position = -(scaledHeight - heightLeft);
+      pdf.addImage(imgData, "JPEG", margin, position + margin, usableWidth, scaledHeight);
+      heightLeft -= pdfHeight;
+    }
+
+    pdf.save(`${projectTitle.replace(/\n/g, " ")}.pdf`);
+  } catch (error) {
+    console.error("Error generando PDF:", error);
+    alert("Hubo un problema al generar el PDF. Intenta nuevamente.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  const resetFilters = () => {
+    setSelectedItem(null);
+    setSelectedItems([]);
+    setSelectedMaterial(null);
+    setSelectedManoObra(null);
+    setGlobalFilter("");
   };
 
-  const presupuestoHeaders = sheets["Presupuesto_General"]?.[0] || [];
-  const presupuestoRows = sheets["Presupuesto_General"]?.slice(1) || [];
-  const materialesHeaders = sheets["Asignación_Materiales"]?.[0] || [];
-  const materialesRows = sheets["Asignación_Materiales"]?.slice(1) || [];
-  const manoObraHeaders = sheets["Asignación_ManoObra"]?.[0] || [];
-  const manoObraRows = sheets["Asignación_ManoObra"]?.slice(1) || [];
-
-  const materialesFiltrados = selectedItem
-    ? materialesRows.filter((m) => m[0] === selectedItem)
-    : [];
-  const manoObraFiltrada = selectedItem
-    ? manoObraRows.filter((m) => m[0] === selectedItem)
-    : [];
+  const handleSelectItem = (item) => {
+    setSelectedItem(item);
+    setSelectedItems([]);
+  };
 
   return (
     <ThemeProvider theme={lightTheme}>
-      <Box sx={{ padding: 4, fontFamily: "Arial", bgcolor: "background.default", minHeight: "100vh" }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            mb: 3,
-          }}
-        >
+      <Box sx={{ padding: isMobile ? 2 : 4, fontFamily: "Arial", bgcolor: "background.default", minHeight: "100vh" }}>
+        <LoadingOverlay loading={loading} />
+
+        <Box sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+          flexWrap: 'wrap',
+          gap: 2
+        }}>
           <TituloConIcono
             icono="📋"
-            texto="Presupuesto General del Proyecto"
+            texto={projectTitle}
             colorFondoIcono="#ffd217"
             colorTexto="#60091a"
           />
-          <Box>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             <input
               type="file"
               accept=".xlsx, .xls"
@@ -290,45 +206,133 @@ function App() {
               style={{ display: "none" }}
             />
             <label htmlFor="input-excel">
-              <Button variant="contained" component="span" sx={{ mr: 2 }}>
+              <Button
+                variant="contained"
+                component="span"
+                startIcon={<UploadIcon />}
+                sx={{ minWidth: isMobile ? '100%' : 180 }}
+                fullWidth={isMobile}
+              >
                 Subir Excel
               </Button>
             </label>
-            <Button variant="outlined" onClick={exportPDF}>
+
+            <Button
+              variant="outlined"
+              onClick={exportPDF}
+              startIcon={<PdfIcon />}
+              disabled={!appData.presupuesto.headers.length || loading}
+              sx={{ minWidth: isMobile ? '100%' : 180 }}
+              fullWidth={isMobile}
+            >
               Exportar PDF
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={resetFilters}
+              startIcon={<RefreshIcon />}
+              disabled={!appData.presupuesto.headers.length}
+              sx={{ minWidth: isMobile ? '100%' : 180 }}
+              fullWidth={isMobile}
+            >
+              Limpiar Filtros
             </Button>
           </Box>
         </Box>
 
-        {presupuestoHeaders.length > 0 ? (
-          <Box id="reporte">
-            <DataTable
-              headers={presupuestoHeaders}
-              rows={presupuestoRows}
-              onRowClick={(codigo) => setSelectedItem(codigo)}
-              selectedRow={selectedItem}
-              tableTitle="Presupuesto General"
-            />
-            {selectedItem && (
-              <>
-                <DataTable
-                  headers={materialesHeaders}
-                  rows={materialesFiltrados}
-                  tableTitle="Materiales del Ítem Seleccionado"
-                />
-                <DataTable
-                  headers={manoObraHeaders}
-                  rows={manoObraFiltrada}
-                  tableTitle="Mano de Obra del Ítem Seleccionado"
-                />
-              </>
-            )}
-          </Box>
-        ) : (
-          <Typography variant="h6" color="text.secondary" align="center">
-            Sube un archivo Excel con las hojas necesarias para comenzar.
-          </Typography>
+        {appData.presupuesto.headers.length > 0 && (
+          <>
+            <GlobalSearch onSearch={setGlobalFilter} />
+
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+              <Tabs
+                value={activeTab}
+                onChange={(_, newValue) => setActiveTab(newValue)}
+                variant={isMobile ? "scrollable" : "standard"}
+                scrollButtons="auto"
+                allowScrollButtonsMobile
+              >
+                <Tab label={isMobile ? "Presup." : "Presupuesto"} value="presupuesto" icon={isMobile ? <span>📝</span> : null} iconPosition="start" />
+                <Tab label={isMobile ? "Mat." : "Materiales"} value="materiales" icon={isMobile ? <span>🏗️</span> : null} iconPosition="start" />
+                <Tab label={isMobile ? "M. Obra" : "Mano de Obra"} value="manoObra" icon={isMobile ? <span>👷</span> : null} iconPosition="start" />
+                <Tab label="Análisis" value="calculos" icon={isMobile ? <span>📊</span> : null} iconPosition="start" />
+              </Tabs>
+            </Box>
+          </>
         )}
+
+        <Box id="reporte">
+          {appData.presupuesto.headers.length > 0 ? (
+            <>
+              {activeTab === "presupuesto" ? (
+                <PresupuestoTab
+                  presupuestoData={appData.presupuesto}
+                  materialesData={appData.materiales}
+                  manoObraData={appData.manoObra}
+                  globalFilter={globalFilter}
+                  selectedItem={selectedItem}
+                  onSelectItem={handleSelectItem}
+                  onSelectMaterial={setSelectedMaterial}
+                  onSelectManoObra={setSelectedManoObra}
+                />
+              ) : activeTab === "materiales" ? (
+                <MaterialesTab
+                  materialesData={appData.materiales}
+                  presupuestoData={appData.presupuesto}
+                  globalFilter={globalFilter}
+                  onSelectMaterial={setSelectedMaterial}
+                />
+              ) : activeTab === "manoObra" ? (
+                <ManoObraTab
+                  manoObraData={appData.manoObra}
+                  presupuestoData={appData.presupuesto}
+                  globalFilter={globalFilter}
+                  onSelectManoObra={setSelectedManoObra}
+                />
+              ) : (
+                <CalculationsSheet
+                  presupuestoData={appData.presupuesto}
+                  materialesData={appData.materiales}
+                  manoObraData={appData.manoObra}
+                  selectedItems={selectedItems}
+                  selectedMaterial={selectedMaterial}
+                  selectedManoObra={selectedManoObra}
+                  onSelectItems={setSelectedItems}
+                  onSelectMaterial={setSelectedMaterial}
+                  onSelectManoObra={setSelectedManoObra}
+                />
+              )}
+            </>
+          ) : (
+            <Paper sx={{
+              p: 4,
+              textAlign: 'center',
+              backgroundColor: 'background.paper',
+              boxShadow: 3
+            }}>
+              <Typography variant="h5" gutterBottom>
+                Bienvenido al Analizador de Presupuestos
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                Por favor, sube un archivo Excel con la estructura requerida para comenzar.
+              </Typography>
+              <label htmlFor="input-excel">
+                <Button
+                  variant="contained"
+                  component="span"
+                  size="large"
+                  startIcon={<UploadIcon />}
+                >
+                  Seleccionar Archivo Excel
+                </Button>
+              </label>
+              <Typography variant="caption" display="block" sx={{ mt: 3 }}>
+                El archivo debe contener al menos las hojas: Presupuesto_General, Catálogo_Materiales y Asignación_Materiales
+              </Typography>
+            </Paper>
+          )}
+        </Box>
       </Box>
     </ThemeProvider>
   );
